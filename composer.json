@@ -1,5 +1,5 @@
 {
-    "name": "ipip/db",
+    "name": "starfalling/ipip",
     "type": "library",
     "description": "IPIP.net officially supported IP database ipdb format parsing library",
     "keywords": ["ipip.net","geoip","geolocation", "geo","ip","ipdb"],
@@ -14,7 +14,7 @@
     ],
     "require": {
         "php": ">=5.4.0"
-    },    
+    },
     "autoload": {
         "psr-4": {
             "ipip\\db\\": "src/ipip/db/"
