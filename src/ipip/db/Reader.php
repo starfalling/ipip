@@ -7,7 +7,6 @@ class Reader
     const IPV4 = 1;
     const IPV6 = 2;
 
-    private $file = NULL;
     private $fileSize = 0;
     private $nodeCount = 0;
     private $nodeOffset = 0;
@@ -15,6 +14,7 @@ class Reader
     private $meta = [];
 
     private $database = '';
+    private $database_content = null;
 
     /**
      * Reader constructor.
@@ -33,17 +33,17 @@ class Reader
         if (is_readable($this->database) === FALSE) {
             throw new \InvalidArgumentException("The IP Database file \"{$this->database}\" does not exist or is not readable.");
         }
-        $this->file = @fopen($this->database, 'rb');
-        if ($this->file === FALSE) {
+        $this->database_content = file_get_contents($this->database);
+        if (empty($this->database_content)) {
             throw new \InvalidArgumentException("IP Database File opening \"{$this->database}\".");
         }
-        $this->fileSize = @filesize($this->database);
+        $this->fileSize = strlen($this->database_content);
         if ($this->fileSize === FALSE) {
             throw new \UnexpectedValueException("Error determining the size of \"{$this->database}\".");
         }
 
-        $metaLength = unpack('N', fread($this->file, 4))[1];
-        $text = fread($this->file, $metaLength);
+        $metaLength = unpack('N', substr($this->database_content, 0, 4))[1];
+        $text = substr($this->database_content, 4, $metaLength);
 
         $this->meta = json_decode($text, 1);
 
@@ -67,10 +67,6 @@ class Reader
      */
     public function find($ip, $language = 'CN')
     {
-        if (is_resource($this->file) === FALSE) {
-            throw new \BadMethodCallException('closed IPIP DB.');
-        }
-
         if (!isset($this->meta['languages'][$language])) {
             throw new \InvalidArgumentException("language : {$language} not support");
         }
@@ -150,6 +146,9 @@ class Reader
             }
         }
 
+//        $this->buildReadNodeCache($v4offset);
+//        exit();
+
         for ($i = $index; $i < $bitCount; $i++) {
             if ($node >= $this->nodeCount) {
                 break;
@@ -179,7 +178,43 @@ class Reader
      */
     private function readNode($node, $index)
     {
-        return unpack('N', $this->read($this->file, $node * 8 + $index * 4, 4))[1];
+        if ($this->fileSize === 3330475) {
+            // 2019 年 1 月发布的二十二个公开版本
+            static $node_caches = [
+                96 => [97, 193286],
+                97 => [98, 73893],
+                98 => [99, 18717],
+                99 => [100, 8194],
+                100 => [101, 5465],
+                8194 => [8195, 15736],
+                18717 => [18718, 43791],
+                18718 => [18719, 30230],
+                43791 => [43792, 47736],
+                73893 => [73894, 121507],
+                73894 => [73895, 93372],
+                73895 => [73896, 86634],
+                93372 => [93373, 104657],
+                121507 => [121508, 156117],
+                121508 => [121509, 138207],
+                156117 => [156118, 175673],
+                193286 => [193287, 272840],
+                193287 => [193288, 220581],
+                193288 => [193289, 205514],
+                193289 => [193290, 199016],
+                205514 => [205515, 212285],
+                220581 => [220582, 236444],
+                220582 => [220583, 227012],
+                236444 => [236445, 248793],
+                272840 => [272841, 411411],
+                272841 => [272842, 347467],
+                272842 => [272843, 317811],
+                347467 => [347468, 372122],
+                411411 => [411452, 411412],
+                411412 => [411452, 411413],
+            ];
+            if (isset($node_caches[$node])) return $node_caches[$node][$index];
+        }
+        return unpack('N', $this->read($node * 8 + $index * 4, 4))[1];
     }
 
     /**
@@ -194,42 +229,27 @@ class Reader
             return NULL;
         }
 
-        $bytes = $this->read($this->file, $resolved, 2);
+        $bytes = $this->read($resolved, 2);
         $size = unpack('N', str_pad($bytes, 4, "\x00", STR_PAD_LEFT))[1];
 
         $resolved += 2;
 
-        return $this->read($this->file, $resolved, $size);
+        return $this->read($resolved, $size);
     }
 
     public function close()
     {
-        if (is_resource($this->file) === TRUE) {
-            fclose($this->file);
-        }
     }
 
     /**
-     * @param $stream
      * @param $offset
      * @param $length
      * @return bool|string
      * @throws \Exception
      */
-    private function read($stream, $offset, $length)
+    private function read($offset, $length)
     {
-        if ($length > 0) {
-            if (fseek($stream, $offset + $this->nodeOffset) === 0) {
-                $value = fread($stream, $length);
-                if (strlen($value) === $length) {
-                    return $value;
-                }
-            }
-
-            throw new \Exception("The Database file read bad data");
-        }
-
-        return '';
+        return substr($this->database_content, $offset + $this->nodeOffset, $length);
     }
 
     public function supportV6()
@@ -253,5 +273,20 @@ class Reader
     public function getBuildTime()
     {
         return $this->meta['build'];
+    }
+
+
+    private function buildReadNodeCache($node, $depth = 0)
+    {
+        if ($depth > 4) return;
+        $node_0 = $this->readNode($node, 0);
+        $node_1 = $this->readNode($node, 1);
+        echo $node, ' => [', $node_0, ', ', $node_1, '],', "\n";
+        if ($node_0 < $this->nodeCount) {
+            $this->buildReadNodeCache($node_0, $depth + 1);
+        }
+        if ($node_1 < $this->nodeCount) {
+            $this->buildReadNodeCache($node_1, $depth + 1);
+        }
     }
 }
