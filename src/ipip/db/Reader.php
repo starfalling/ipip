@@ -15,6 +15,7 @@ class Reader
 
     private $database = '';
     private $database_content = null;
+    private static $database_content_cache = null;
 
     /**
      * Reader constructor.
@@ -33,7 +34,10 @@ class Reader
         if (is_readable($this->database) === FALSE) {
             throw new \InvalidArgumentException("The IP Database file \"{$this->database}\" does not exist or is not readable.");
         }
-        $this->database_content = file_get_contents($this->database);
+        if(empty(self::$database_content_cache)) {
+            self::$database_content_cache = file_get_contents($this->database);
+        }
+        $this->database_content = self::$database_content_cache;
         if (empty($this->database_content)) {
             throw new \InvalidArgumentException("IP Database File opening \"{$this->database}\".");
         }
