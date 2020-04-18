@@ -15,7 +15,24 @@ class Reader
 
     private $database = '';
     private $database_content = null;
-    private static $database_content_cache = null;
+
+    private function readDatabaseContent()
+    {
+        static $database_content_cache = null;
+        static $is_loading = false;
+        if (empty($database_content_cache)) {
+            if ($is_loading && method_exists('\Swoole\Coroutine', 'sleep')) {
+                for ($i = 0; $i < 100; $i++) {
+                    if (!$is_loading) break;
+                    \Swoole\Coroutine::sleep(0.001);
+                }
+            }
+            $is_loading = true;
+            $database_content_cache = file_get_contents($this->database);
+            $is_loading = false;
+        }
+        return $database_content_cache;
+    }
 
     /**
      * Reader constructor.
@@ -34,10 +51,7 @@ class Reader
         if (is_readable($this->database) === FALSE) {
             throw new \InvalidArgumentException("The IP Database file \"{$this->database}\" does not exist or is not readable.");
         }
-        if(empty(self::$database_content_cache)) {
-            self::$database_content_cache = file_get_contents($this->database);
-        }
-        $this->database_content = self::$database_content_cache;
+        $this->database_content = $this->readDatabaseContent();
         if (empty($this->database_content)) {
             throw new \InvalidArgumentException("IP Database File opening \"{$this->database}\".");
         }
