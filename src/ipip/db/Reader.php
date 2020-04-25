@@ -27,6 +27,9 @@ class Reader
                     \Swoole\Coroutine::sleep(0.001);
                 }
             }
+            if(!empty($database_content_cache)) {
+                return $database_content_cache;
+            }
             $is_loading = true;
             $database_content_cache = file_get_contents($this->database);
             $is_loading = false;
