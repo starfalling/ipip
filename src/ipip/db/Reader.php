@@ -19,20 +19,20 @@ class Reader
     private function readDatabaseContent()
     {
         static $database_content_cache = null;
-        static $is_loading = false;
+        static $is_loading = null;
+        if(!$is_loading && class_exists('\Swoole\Coroutine\Channel')) {
+          $is_loading = new \Swoole\Coroutine\Channel(1);
+          $is_loading->push(1);
+        }
+
         if (empty($database_content_cache)) {
-            if ($is_loading && method_exists('\Swoole\Coroutine', 'sleep')) {
-                for ($i = 0; $i < 100; $i++) {
-                    if (!$is_loading) break;
-                    \Swoole\Coroutine::sleep(0.001);
-                }
-            }
+            $is_loading && $is_loading->pop(0.1);
             if(!empty($database_content_cache)) {
+                $is_loading && $is_loading->isEmpty() && $is_loading->push(1);
                 return $database_content_cache;
             }
-            $is_loading = true;
             $database_content_cache = file_get_contents($this->database);
-            $is_loading = false;
+            $is_loading && $is_loading->isEmpty() && $is_loading->push(1);
         }
         return $database_content_cache;
     }
