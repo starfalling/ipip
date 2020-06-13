@@ -18,9 +18,16 @@ class Reader
 
     private function readDatabaseContent()
     {
+        global $ipip_database;
         static $database_content_cache = null;
         static $is_loading = null;
         static $timer = null;
+
+        // 外部全局变量加载
+        if ($ipip_database) {
+            return $ipip_database;
+        }
+
         if(!$is_loading && class_exists('\Swoole\Coroutine\Channel')) {
           $is_loading = new \Swoole\Coroutine\Channel(1);
           $is_loading->push(1);
