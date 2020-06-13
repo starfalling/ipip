@@ -20,18 +20,36 @@ class Reader
     {
         static $database_content_cache = null;
         static $is_loading = null;
+        static $timer = null;
         if(!$is_loading && class_exists('\Swoole\Coroutine\Channel')) {
           $is_loading = new \Swoole\Coroutine\Channel(1);
           $is_loading->push(1);
         }
 
         if (empty($database_content_cache)) {
-            $is_loading && $is_loading->pop(0.1);
+            $is_loading && $is_loading->pop();
             if(!empty($database_content_cache)) {
                 $is_loading && $is_loading->isEmpty() && $is_loading->push(1);
                 return $database_content_cache;
             }
+            // 定时器每隔100ms检查是否加载成功，加载失败则唤醒另一个协程
+            if ($timer === null && class_exists('\Swoole\Timer')) {
+                $timer = \Swoole\Timer::tick(100, function($timer_id) use (&$is_loading, &$database_content_cache, &$timer){
+                    if ($database_content_cache) {
+                        if ($timer) {
+                            \Swoole\Timer::clear($timer_id);
+                            $timer = null;
+                        }
+                    } else {
+                        $is_loading && $is_loading->isEmpty() && $is_loading->push(1);
+                    }
+                });
+            }
             $database_content_cache = file_get_contents($this->database);
+            if ($database_content_cache && $timer) {
+                \Swoole\Timer::clear($timer);
+                $timer = null;
+            }
             $is_loading && $is_loading->isEmpty() && $is_loading->push(1);
         }
         return $database_content_cache;
